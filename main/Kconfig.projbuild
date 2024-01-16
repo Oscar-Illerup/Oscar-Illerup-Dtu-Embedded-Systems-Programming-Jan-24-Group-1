@@ -1,0 +1,27 @@
+menu "Example Configuration"
+
+    choice EXAMPLE_LCD_CONTROLLER
+        prompt "LCD controller model"
+        default EXAMPLE_LCD_CONTROLLER_SSD1306
+        help
+            Select LCD controller model
+
+        config EXAMPLE_LCD_CONTROLLER_SSD1306
+            bool "SSD1306"
+
+        config EXAMPLE_LCD_CONTROLLER_SH1107
+            bool "SH1107"
+    endchoice
+
+
+    config BROKER_URL
+        string "Broker URL"
+        default "mqtt://mqtt.eclipseprojects.io"
+        help
+            URL of the broker to connect to
+
+    config BROKER_URL_FROM_STDIN
+        bool
+        default y if BROKER_URL = "FROM_STDIN"
+
+endmenu
