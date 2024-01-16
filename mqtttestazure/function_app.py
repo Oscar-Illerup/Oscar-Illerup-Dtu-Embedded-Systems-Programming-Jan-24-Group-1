@@ -1,10 +1,7 @@
-import azure.functions as func
 import pymysql
 import json
 import paho.mqtt.client as mqtt
 import datetime
-
-app = func.FunctionApp(http_auth_level=func.AuthLevel.FUNCTION)
 
 
 # MQTT settings

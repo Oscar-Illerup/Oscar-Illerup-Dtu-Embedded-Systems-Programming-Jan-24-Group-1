@@ -1,59 +1,39 @@
-# app.py
 from flask import Flask, render_template
-import sqlite3
-import matplotlib.pyplot as plt
-from io import BytesIO
-import base64
+import pymysql
+import plotly.express as px
 
 app = Flask(__name__)
 
-
-db_config = {
+# Database configuration
+DB_CONFIG = {
     'host': 'cp07.nordicway.dk',
     'user': 'basicwea_eMiot-oillerup121202',
     'password': 'OscarDtu123',
     'database': 'basicwea_test',
-    'port': '3306',
 }
 
-# Function to fetch data from the SQLite database
-def fetch_data():
-    conn = sqlite3.connect(**db_config)  # Connect to your SQLite database
-    cursor = conn.cursor()
-    cursor.execute('SELECT * FROM sensor_data')  # Replace 'sensor_data' with your table name
-    data = cursor.fetchall()
-    conn.close()
-    return data
 
-# Function to create a plot and return it as a base64-encoded image
-def create_plot(data):
-    x = [row[0] for row in data]  # Assuming the first column is time
-    y_temp = [row[1] for row in data]  # Assuming the second column is temperature
-    y_hum = [row[2] for row in data]  # Assuming the third column is humidity
-
-    plt.figure(figsize=(10, 6))
-    plt.plot(x, y_temp, label='Temperature')
-    plt.plot(x, y_hum, label='Humidity')
-    plt.xlabel('Time')
-    plt.ylabel('Values')
-    plt.title('Temperature and Humidity Over Time')
-    plt.legend()
-    
-    # Save the plot to a BytesIO object
-    img_bytes = BytesIO()
-    plt.savefig(img_bytes, format='png')
-    plt.close()
-
-    # Encode the BytesIO object as base64
-    img_base64 = base64.b64encode(img_bytes.getvalue()).decode('utf-8')
-
-    return img_base64
-
+# Route to display the graph
 @app.route('/')
 def index():
-    data = fetch_data()
-    plot_image = create_plot(data)
-    return render_template('index.html', plot_image=plot_image)
+    connection = pymysql.connect(**DB_CONFIG)
+    cursor = connection.cursor()
+
+    # Fetch data from the table
+    query = "SELECT time, data FROM hum"
+    cursor.execute(query)
+    data = cursor.fetchall()
+
+    # Create a graph using plotly
+    fig = px.line(x=[row[0] for row in data], y=[row[1] for row in data], labels={'x': 'time', 'y': 'hum'})
+    fig.add_scatter(x=[row[0] for row in data], y=[row[1] for row in data], mode='lines', name='hum')
+
+    # Convert the plot to HTML
+    graph_html = fig.to_html(full_html=False)
+
+    connection.close()
+
+    return render_template('index.html', graph_html=graph_html)
 
 if __name__ == '__main__':
     app.run(debug=True)
