@@ -294,6 +294,7 @@ void IRAM_ATTR button_isr_handler(void *arg)
 }
 
 volatile bool timer_expired = false;
+volatile bool timer_activ = false;
 
 void IRAM_ATTR timer_isr_handler(void *arg)
 {
@@ -404,7 +405,7 @@ void app_main(void)
     printf("i2c_port_t value: %d\n", port);
 
     int16_t loop_count = 0;
-    const int16_t loop_times = 300;
+    const int16_t loop_times = 30;
 
     while (1)
     {
@@ -499,11 +500,15 @@ void app_main(void)
         // ISR's should set flags, while-loop in app_main should respond to flags and revert their state
         if (button_pressed)
         {
-            printf("Button pressed\n");
+            if (!timer_activ){       
             // Your code here
             ESP_ERROR_CHECK(esp_timer_start_once(oneshot_timer, 5000000));
+            printf("Timer start\n");
             led_on(soil_status);
+            timer_activ = true;
+            }
             button_pressed = false;
+            printf("Button pressed\n");
         }
         if (timer_expired)
         {
@@ -511,6 +516,7 @@ void app_main(void)
             // Your code here
             led_off();
             timer_expired = false;
+            timer_activ = false;
         }
 
         loop_count++;
