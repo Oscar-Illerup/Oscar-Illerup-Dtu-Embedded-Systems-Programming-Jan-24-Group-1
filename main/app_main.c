@@ -403,86 +403,99 @@ void app_main(void)
     i2c_port_t port = setup_i2c(GPIO_NUM_19, GPIO_NUM_18);
     printf("i2c_port_t value: %d\n", port);
 
+    int16_t loop_count = 0;
+    const int16_t loop_times = 300;
+
     while (1)
     {
-        // Read ADC value
-        int raw_light = adc1_get_raw(ADC1_CHANNEL_2);
-        char buffer[10];
-        sprintf(buffer, "%d", raw_light);
-        esp_mqtt_client_publish(client, "/topic/oscarillerup/rawlightdata", buffer, 0, 1, 0);
-
-        // read soil_sensor
-        int raw_soil = read_soil_sensor(port);
-        sprintf(buffer, "%d", raw_soil);
-        esp_mqtt_client_publish(client, "/topic/oscarillerup/rawsoildata", buffer, 0, 1, 0);
-
-        // read temp hum
-
-        err = am2320_read_temp(port, AM2320_I2C_ADDR, &temp_reading, &hum_reading);
-
-        if (err == ESP_OK)
+        if (loop_count > loop_times)
         {
-            raw_real_temp = (float)temp_reading / 10.0;
-            raw_real_hum = (float)hum_reading / 10;
-            printf("temp=%.2f hum=%.2f\n", raw_real_temp, raw_real_hum);
+            // Read ADC value
+            int raw_light = adc1_get_raw(ADC1_CHANNEL_2);
+            char buffer[10];
+            sprintf(buffer, "%d", raw_light);
+            esp_mqtt_client_publish(client, "/topic/oscarillerup/rawlightdata", buffer, 0, 1, 0);
+
+            // read soil_sensor
+            int raw_soil = read_soil_sensor(port);
+            sprintf(buffer, "%d", raw_soil);
+            esp_mqtt_client_publish(client, "/topic/oscarillerup/rawsoildata", buffer, 0, 1, 0);
+
+            // read temp hum
+
+            err = am2320_read_temp(port, AM2320_I2C_ADDR, &temp_reading, &hum_reading);
+
+            if (err == ESP_OK)
+            {
+                raw_real_temp = (float)temp_reading / 10.0;
+                raw_real_hum = (float)hum_reading / 10;
+                printf("temp=%.2f hum=%.2f\n", raw_real_temp, raw_real_hum);
+            }
+            else
+            {
+                printf("ERR: Unable to read temperature sensor: %x (%s)\n", err, esp_err_to_name(err));
+            }
+            sprintf(buffer, "%.2f", raw_real_temp);
+            esp_mqtt_client_publish(client, "/topic/oscarillerup/rawtempdata", buffer, 0, 1, 0);
+
+            sprintf(buffer, "%.2f", raw_real_hum);
+            esp_mqtt_client_publish(client, "/topic/oscarillerup/rawhumdata", buffer, 0, 1, 0);
+
+            // processed data
+
+            // processing soil
+            switch (raw_soil)
+            {
+            case 0 ... 400:
+                soil_status = 0;
+                printf("Out of soil\n");
+                esp_mqtt_client_publish(client, "/topic/oscarillerup/soilprocesseddata", "Out of soil", 0, 1, 0);
+                break;
+            case 401 ... 700:
+                soil_status = 1;
+                printf("Dry soil\n");
+                esp_mqtt_client_publish(client, "/topic/oscarillerup/soilprocesseddata", "Dry soil", 0, 1, 0);
+                break;
+            case 701 ... 775:
+                soil_status = 2;
+                printf("light moist soil\n");
+                esp_mqtt_client_publish(client, "/topic/oscarillerup/soilprocesseddata", "light moist soil", 0, 1, 0);
+                break;
+            case 776 ... 900:
+                soil_status = 3;
+                printf("perfect soil\n");
+                esp_mqtt_client_publish(client, "/topic/oscarillerup/soilprocesseddata", "perfect soil", 0, 1, 0);
+                break;
+            case 901 ... 2000:
+                soil_status = 4;
+                printf("Too wet soil\n");
+                esp_mqtt_client_publish(client, "/topic/oscarillerup/soilprocesseddata", "Too wet soil", 0, 1, 0);
+                break;
+
+            default:
+                break;
+            }
+
+            // processing light
+            if (raw_light < 3000)
+            {
+                printf("light on\n");
+                esp_mqtt_client_publish(client, "/topic/oscarillerup/lightprocesseddata", "light on", 0, 1, 0);
+            }
+            else
+            {
+                printf("light off\n");
+                esp_mqtt_client_publish(client, "/topic/oscarillerup/lightprocesseddata", "light off", 0, 1, 0);
+            }
+
+            // Print the ADC value to the console
+            printf("ADC Value: %d\n", raw_light);
+
+            loop_count = 0;
+
+            vTaskDelay(4000 / portTICK_PERIOD_MS);
+
         }
-        else
-        {
-            printf("ERR: Unable to read temperature sensor: %x (%s)\n", err, esp_err_to_name(err));
-        }
-        sprintf(buffer, "%.2f", raw_real_temp);
-        esp_mqtt_client_publish(client, "/topic/oscarillerup/rawtempdata", buffer, 0, 1, 0);
-
-        sprintf(buffer, "%.2f", raw_real_hum);
-        esp_mqtt_client_publish(client, "/topic/oscarillerup/rawhumdata", buffer, 0, 1, 0);
-
-        // processed data
-
-        // processing soil
-        switch (raw_soil)
-        {
-        case 0 ... 400:
-            soil_status = 0;
-            printf("Out of soil\n");
-            esp_mqtt_client_publish(client, "/topic/oscarillerup/soilprocesseddata", "Out of soil", 0, 1, 0);
-            break;
-        case 401 ... 700:
-            soil_status = 1;
-            printf("Dry soil\n");
-            esp_mqtt_client_publish(client, "/topic/oscarillerup/soilprocesseddata", "Dry soil", 0, 1, 0);
-            break;
-        case 701 ... 775:
-            soil_status = 2;
-            printf("light moist soil\n");
-            esp_mqtt_client_publish(client, "/topic/oscarillerup/soilprocesseddata", "light moist soil", 0, 1, 0);
-            break;
-        case 776 ... 900:
-            soil_status = 3;
-            printf("perfect soil\n");
-            esp_mqtt_client_publish(client, "/topic/oscarillerup/soilprocesseddata", "perfect soil", 0, 1, 0);
-            break;
-        case 901 ... 2000:
-            soil_status = 4;
-            printf("Too wet soil\n");
-            esp_mqtt_client_publish(client, "/topic/oscarillerup/soilprocesseddata", "Too wet soil", 0, 1, 0);
-            break;
-
-        default:
-            break;
-        }
-
-        // processing light
-        if (raw_light < 3000)
-        {
-            printf("light on\n");
-            esp_mqtt_client_publish(client, "/topic/oscarillerup/lightprocesseddata", "light on", 0, 1, 0);
-        }
-        else
-        {
-            printf("light off\n");
-            esp_mqtt_client_publish(client, "/topic/oscarillerup/lightprocesseddata", "light off", 0, 1, 0);
-        }
-
         // ISR's should set flags, while-loop in app_main should respond to flags and revert their state
         if (button_pressed)
         {
@@ -500,9 +513,8 @@ void app_main(void)
             timer_expired = false;
         }
 
-        // Print the ADC value to the console
-        printf("ADC Value: %d\n", raw_light);
+        loop_count++;
 
-        vTaskDelay(3000 / portTICK_PERIOD_MS);
+        vTaskDelay(100 / portTICK_PERIOD_MS);
     }
 }
