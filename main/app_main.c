@@ -40,9 +40,12 @@
 #define blue_led_gpio GPIO_NUM_9
 #define BUTTON_PIN GPIO_NUM_0
 
-// led section
+/***************************************************************
+ *                          LED SECTION
+ ***************************************************************/
 int led_on(int soil_status)
 {
+    // based on soil status, the RGB LED is set to a specific color
     switch (soil_status)
     {
     case 0:
@@ -77,6 +80,7 @@ int led_on(int soil_status)
     return 0;
 }
 
+// function to turn RGB LED off
 void led_off(void)
 {
     gpio_set_level(blue_led_gpio, true);
@@ -88,11 +92,13 @@ void led_off(void)
  *                     I2C COMMUNICATION SECTION
  ***************************************************************/
 
+// this section is dealing with the setup of the master i2c port
 i2c_port_t setup_i2c(int sda_pin, int scl_pin)
 {
     esp_err_t err;
 
     int i2c_master_port = I2C_MASTER_PORT;
+    // a struct to define i2c configurations
     i2c_config_t i2c_conf = {
         .mode = I2C_MODE_MASTER,
         .sda_io_num = sda_pin,
@@ -101,6 +107,7 @@ i2c_port_t setup_i2c(int sda_pin, int scl_pin)
         .scl_pullup_en = GPIO_PULLUP_ENABLE,
         .master.clk_speed = I2C_FREQ_HZ};
 
+    // calling i2c config with predefined configurations
     err = i2c_param_config(i2c_master_port, &i2c_conf);
     if (err != ESP_OK)
     {
@@ -108,7 +115,7 @@ i2c_port_t setup_i2c(int sda_pin, int scl_pin)
         vTaskDelay(2000 / portTICK_PERIOD_MS);
         return -1;
     }
-
+    // installing i2c drivers
     err = i2c_driver_install(i2c_master_port, I2C_MODE_MASTER, I2C_SLV_BUFSIZE, I2C_SLV_BUFSIZE, 0);
     if (err != ESP_OK)
     {
@@ -120,12 +127,16 @@ i2c_port_t setup_i2c(int sda_pin, int scl_pin)
     return i2c_master_port;
 }
 
+// a function to read the STEMMA soil sensor
 unsigned short read_soil_sensor(i2c_port_t port)
 {
     esp_err_t err;
+    // first index of the write buffer controls the base address of the registry, we are reading
+    // second index of the write buffer is how many registries to read forward
     uint8_t wbuf[2] = {STEMMA_BASE_ADDR, STEMMA_F_REG};
     uint8_t rbuf[STEMMA_RBUF_SIZE];
 
+    // The function is used to read from the soil sensor at STEMMA_I2C_ADDR
     err = i2c_master_write_read_device(port, STEMMA_I2C_ADDR, wbuf, 2, rbuf, STEMMA_RBUF_SIZE, I2C_TIMEOUT_MS / portTICK_PERIOD_MS);
     if (err != ESP_OK)
     {
@@ -135,6 +146,7 @@ unsigned short read_soil_sensor(i2c_port_t port)
     return r;
 }
 
+// function is defined to wake up the AM2320 humidity and temperature sensor
 esp_err_t wake_am2320(i2c_port_t port, uint8_t am2320_addr)
 {
     esp_err_t res;
@@ -151,6 +163,7 @@ esp_err_t wake_am2320(i2c_port_t port, uint8_t am2320_addr)
     return res;
 }
 
+// function to read the am2320 temperature at the given address and i2c port
 esp_err_t am2320_read_temp(i2c_port_t port, uint8_t am2320_addr, uint16_t *temp_reading, uint16_t *hum_reading)
 {
     esp_err_t err;
@@ -213,8 +226,9 @@ esp_err_t am2320_read_temp(i2c_port_t port, uint8_t am2320_addr, uint16_t *temp_
 /***************************************************************
  *                       MQTT SECTION
  ***************************************************************/
-static const char *TAG = "mqtt_example";
+static const char *TAG = "mqtt";
 
+// function for error logging
 static void log_error_if_nonzero(const char *message, int error_code)
 {
     if (error_code != 0)
@@ -239,6 +253,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
     esp_mqtt_event_handle_t event = event_data;
     esp_mqtt_client_handle_t client = event->client;
     int msg_id;
+    // switch to handle incoming mqtt events
     switch ((esp_mqtt_event_id_t)event_id)
     {
     case MQTT_EVENT_CONNECTED:
@@ -285,16 +300,22 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
     }
 }
 
+/***************************************************************
+ *                        BUTTON SECTION
+ ***************************************************************/
 volatile bool button_pressed = false;
-
+// interrupt handler for button
 void IRAM_ATTR button_isr_handler(void *arg)
 {
     button_pressed = true;
 }
 
+/***************************************************************
+ *                         TIMER SECTION
+ ***************************************************************/
 volatile bool timer_expired = false;
 volatile bool timer_activ = false;
-
+// interrupt handler for timer
 void IRAM_ATTR timer_isr_handler(void *arg)
 {
     timer_expired = true;
@@ -306,13 +327,14 @@ void app_main(void)
     /***************************************************************
      *                       MQTT APP MAIN SECTION
      ***************************************************************/
+    // starting up the mqtt connection
     ESP_LOGI(TAG, "[APP] Startup..");
     ESP_LOGI(TAG, "[APP] Free memory: %" PRIu32 " bytes", esp_get_free_heap_size());
     ESP_LOGI(TAG, "[APP] IDF version: %s", esp_get_idf_version());
 
     esp_log_level_set("*", ESP_LOG_INFO);
     esp_log_level_set("mqtt_client", ESP_LOG_VERBOSE);
-    esp_log_level_set("mqtt_example", ESP_LOG_VERBOSE);
+    esp_log_level_set("mqtt", ESP_LOG_VERBOSE);
     esp_log_level_set("transport_base", ESP_LOG_VERBOSE);
     esp_log_level_set("esp-tls", ESP_LOG_VERBOSE);
     esp_log_level_set("transport", ESP_LOG_VERBOSE);
@@ -342,6 +364,7 @@ void app_main(void)
     /***************************************************************
      *                    GPIO PIN SETUP SECTION
      ***************************************************************/
+    // configuration of Analog to Digital Converter
     adc1_config_width(ADC_WIDTH_BIT_12);
     adc1_config_channel_atten(ADC1_CHANNEL_2, ADC_ATTEN_DB_11); // ADC1_CHANNEL_2 corresponds to GPIO 2
 
@@ -396,13 +419,14 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_timer_create(&oneshot_timer_args, &oneshot_timer));
 
     /***************************************************************
-     *                    I2C APP MANIN SETUP
+     *                    I2C APP MAIN SETUP
      ***************************************************************/
 
     // Configure of i2c port
     i2c_port_t port = setup_i2c(GPIO_NUM_19, GPIO_NUM_18);
     printf("i2c_port_t value: %d\n", port);
 
+    // Defining variables to only run sensor and mqtt send every x loops
     int16_t loop_count = 0;
     const int16_t loop_times = 30;
 
@@ -419,6 +443,7 @@ void app_main(void)
             // read soil_sensor
             int raw_soil = read_soil_sensor(port);
             sprintf(buffer, "%d", raw_soil);
+            // publish read data to the mqtt topic specified in the function
             esp_mqtt_client_publish(client, "/topic/oscarillerup/rawsoildata", buffer, 0, 1, 0);
 
             // read temp hum
@@ -435,15 +460,19 @@ void app_main(void)
             {
                 printf("ERR: Unable to read temperature sensor: %x (%s)\n", err, esp_err_to_name(err));
             }
+            // using sprintf to convert the float to char values for sending data using mqtt
             sprintf(buffer, "%.2f", raw_real_temp);
+            // publish read data to the mqtt topic specified in the function
             esp_mqtt_client_publish(client, "/topic/oscarillerup/rawtempdata", buffer, 0, 1, 0);
 
             sprintf(buffer, "%.2f", raw_real_hum);
             esp_mqtt_client_publish(client, "/topic/oscarillerup/rawhumdata", buffer, 0, 1, 0);
 
-            // processed data
-
+            /***************************************************************
+             *                    PROCESSING RAW DATA
+             ***************************************************************/
             // processing soil
+            // switch to differ the different status of the soil read value
             switch (raw_soil)
             {
             case 0 ... 400:
@@ -477,6 +506,7 @@ void app_main(void)
             }
 
             // processing light
+            // if statement to differentiate between light on and light off from the read data
             if (raw_light < 3000)
             {
                 printf("light on\n");
@@ -494,21 +524,22 @@ void app_main(void)
             loop_count = 0;
 
             vTaskDelay(4000 / portTICK_PERIOD_MS);
-
         }
-        // ISR's should set flags, while-loop in app_main should respond to flags and revert their state
+        // button logic
         if (button_pressed)
         {
-            if (!timer_activ){       
-            // Your code here
-            ESP_ERROR_CHECK(esp_timer_start_once(oneshot_timer, 5000000));
-            printf("Timer start\n");
-            led_on(soil_status);
-            timer_activ = true;
+            if (!timer_activ)
+            {
+                // Your code here
+                ESP_ERROR_CHECK(esp_timer_start_once(oneshot_timer, 5000000));
+                printf("Timer start\n");
+                led_on(soil_status);
+                timer_activ = true;
             }
             button_pressed = false;
             printf("Button pressed\n");
         }
+        // timer logic
         if (timer_expired)
         {
             printf("Timer expired\n");
@@ -517,7 +548,7 @@ void app_main(void)
             timer_expired = false;
             timer_activ = false;
         }
-
+        // counts how many times the loop has run (resets every time it hits loop_time)
         loop_count++;
 
         vTaskDelay(100 / portTICK_PERIOD_MS);
