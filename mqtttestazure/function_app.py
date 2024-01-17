@@ -13,7 +13,7 @@ MQTT_TOPIC_hum = "/topic/oscarillerup/rawhumdata"
 MQTT_TOPIC_light = "/topic/oscarillerup/rawlightdata"
 MQTT_TOPIC_soil = "/topic/oscarillerup/rawsoildata"
 MQTT_TOPIC_psoil = "/topic/oscarillerup/soilprocesseddata"
-MQTT_TOPIC_plight = "/topic/oscarillerup/lightprocesseddata"
+MQTT_TOPIC_plight = "/topic/oscarillerup/lightprocesseddata" 
 
 
 # MySQL settings
