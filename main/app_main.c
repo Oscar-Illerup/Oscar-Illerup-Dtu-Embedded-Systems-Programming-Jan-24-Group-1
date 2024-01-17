@@ -41,7 +41,6 @@
 #define BUTTON_PIN GPIO_NUM_0
 
 // led section
-  //goddag
 int led_on(int soil_status)
 {
     switch (soil_status)
